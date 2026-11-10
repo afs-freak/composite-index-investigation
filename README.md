@@ -1,77 +1,61 @@
-# Broken Index Repository
+# Composite Index Investigation
 
-## Project: Employee Reporting DB
+## Overview
 
-This repository simulates a reporting database with slow queries due to **incorrect composite index ordering**. The goal is for learners to investigate and fix the indexes.
+This project investigates how the order of columns in a composite B-tree index affects query performance in PostgreSQL.
 
----
+The experiment compares an incorrect index order `(salary, department)` with the corrected index order `(department, salary)`.
 
-## Repository Structure
+## Database Setup
 
-```
-employee-reporting-db/
-│
-├── README.md
-├── db/
-│   ├── schema.sql       # Database schema with tables and broken indexes
-│   ├── sample_data.sql  # Sample data for testing queries
-│   └── queries.sql      # Multi-filter queries to analyze performance
-└── Changes.md           # File for learners to document fixes
-```
-
----
-
-## Setup Instructions
-
-1. Clone this repository:
-
-```bash
-git clone <your-repo-url>
-cd employee-reporting-db
-```
-
-2. Create the database in PostgreSQL:
+Create the database:
 
 ```sql
 CREATE DATABASE employee_reporting;
+```
+
+Connect to it:
+
+```sql
 \c employee_reporting
 ```
 
-3. Run the schema file:
+Run these commands from the project root in PowerShell:
 
-```sql
-\i db/schema.sql
+```powershell
+psql -X -U postgres -v ON_ERROR_STOP=1 -d employee_reporting -f .\db\schema.sql
+
+psql -X -U postgres -v ON_ERROR_STOP=1 -d employee_reporting -f .\db\sample_data.sql
 ```
 
-4. Load sample data:
+## Experiment 1: Incorrect Index
 
-```sql
-\i db/sample_data.sql
+Run:
+
+```powershell
+psql -X -U postgres -v ON_ERROR_STOP=1 -d employee_reporting -f .\db\01_incorrect_index.sql
 ```
 
-5. Run the queries to see current performance:
+This script:
+- Inserts 200,000 benchmark records.
+- Creates the incorrect composite index `(salary, department)`.
+- Runs `EXPLAIN ANALYZE` on the test query.
 
-```sql
-\i db/queries.sql
+## Experiment 2: Corrected Index
+
+Run:
+
+```powershell
+psql -X -U postgres -v ON_ERROR_STOP=1 -d employee_reporting -f .\db\02_corrected_index.sql
 ```
 
-Use `EXPLAIN ANALYZE` to view execution plans and query timings.
+This script:
+- Removes the incorrect index.
+- Creates the corrected composite index `(department, salary)`.
+- Runs `ANALYZE`.
+- Executes the same query and an additional test query using `EXPLAIN ANALYZE`.
 
----
-
-## What is Broken?
-
-* A composite index exists but the column order **does not match the query filter pattern**.
-* Multi-column queries perform **full table scans**.
-
-### Broken Index Example
-
-```sql
--- Incorrect index order
-CREATE INDEX idx_salary_department ON employees(salary, department);
-```
-
-### Query to Test
+## Main Test Query
 
 ```sql
 SELECT *
@@ -80,27 +64,35 @@ WHERE department = 'Sales'
 AND salary > 50000;
 ```
 
-The database **does not use the index efficiently**.
+## Results
 
----
+| Metric | Incorrect Index | Corrected Index |
+|---|---:|---:|
+| Index order | salary, department | department, salary |
+| Query plan | Sequential Scan | Bitmap Heap Scan |
+| Execution time | 16.641 ms | 3.786 ms |
 
-## Learning Task
+The corrected index reduced execution time by approximately 77.2% in this experiment.
 
-1. Run the multi-filter queries and observe performance.
-2. Investigate the broken indexes.
-3. Redesign the composite index with correct column order.
-4. Compare performance before and after the fix.
-5. Document your reasoning in `Changes.md`.
+Detailed observations and performance comparisons are documented in [Changes.md](Changes.md).
 
----
+## Project Structure
 
-## Notes
+```text
+composite-index-investigation/
+├── db/
+│   ├── schema.sql
+│   ├── sample_data.sql
+│   ├── queries.sql
+│   ├── 01_incorrect_index.sql
+│   └── 02_corrected_index.sql
+├── Changes.md
+└── README.md
+```
 
-* The schema contains additional tables (departments, projects) for context.
-* Learners should **not modify table structures**, only indexes.
-* Screenshots of query plans before and after the fix are required for submission.
+## Tools Used
 
----
-
-Happy debugging and index optimizing!
-PR update
+- PostgreSQL 18.4
+- SQL
+- EXPLAIN ANALYZE
+- Composite B-tree Indexes
